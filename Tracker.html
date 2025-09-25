@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 60-Day LeetCode Study Plan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Calm Desert -->
+    <!-- Application Structure Plan: A dashboard-centric, single-page application is chosen for optimal user experience. The structure features a header with an overall progress donut chart for immediate feedback. Below this, a horizontal bar chart visualizes the distribution of topics across the plan, giving a high-level curriculum overview. The core of the application is a tab-based navigation system for weeks 1 through 9 (8 weeks + mock contest week). This chunking of content prevents overwhelming the user with a long scrollable list. Each tab reveals a weekly view with daily tasks presented as individual 'cards'. This card-based layout is clean, scannable, and responsive. The primary interaction is checking off completed days, which dynamically updates the progress charts, providing a sense of accomplishment and clear tracking. This design prioritizes clarity, motivation, and ease of navigation over a simple table representation. -->
+    <!-- Visualization & Content Choices: 
+        - Overall Progress: Report Info -> Total days completed vs. total days. Goal -> Inform. Viz/Method -> Donut Chart. Interaction -> Updates on checkbox click. Justification -> Visually engaging and provides an instant, high-level summary of completion. Library/Method -> Chart.js/Canvas.
+        - Topic Distribution: Report Info -> Count of days per high-level topic (e.g., Arrays, Trees, DP). Goal -> Organize/Summarize. Viz/Method -> Horizontal Bar Chart. Interaction -> Static display. Justification -> Allows the user to quickly grasp the study plan's focus areas and time allocation. Library/Method -> Chart.js/Canvas.
+        - Weekly Plan: Report Info -> Daily topics and problems for a given week. Goal -> Organize. Viz/Method -> Tabbed navigation with card-based layouts for each day. Interaction -> Clickable tabs to switch weeks; checkboxes to mark progress. Justification -> Tabs prevent information overload, and cards provide a structured, readable format for daily tasks. Library/Method -> HTML/CSS/Tailwind + JS.
+        - LeetCode Problems: Report Info -> Specific problem names and numbers. Goal -> Inform. Viz/Method -> Hyperlinked list items. Interaction -> Click to open LeetCode problem in a new tab. Justification -> Provides direct, actionable links to the study material. Library/Method -> HTML + JS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            background-color: #FDFBF6;
+            font-family: 'Inter', sans-serif;
+        }
+        .tab-active {
+            border-color: #7D9D9C;
+            color: #576F72;
+            font-weight: 600;
+        }
+        .day-card {
+            background-color: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .day-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+        }
+        .revision-card {
+            background-color: #F0F5F5;
+        }
+        .completed-card {
+            background-color: #F0FFF4;
+            border-left: 5px solid #48BB78;
+        }
+        .chart-container {
+            position: relative;
+            margin: auto;
+            width: 100%;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="text-gray-700">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">60-Day LeetCode Study Plan</h1>
+            <p class="mt-2 text-lg text-gray-600">Your interactive guide to mastering data structures and algorithms.</p>
+        </header>
+
+        <main>
+            <section id="dashboard" class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+                <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold text-center text-gray-800 mb-4">Overall Progress</h2>
+                    <div class="chart-container h-64 sm:h-72 max-h-[350px] max-w-sm">
+                        <canvas id="progressChart"></canvas>
+                    </div>
+                </div>
+                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold text-center text-gray-800 mb-4">Topic Distribution</h2>
+                     <div class="chart-container h-64 sm:h-72 max-h-[350px] max-w-2xl">
+                        <canvas id="topicChart"></canvas>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="weekly-plan">
+                <div class="bg-white p-4 sm:p-6 rounded-xl shadow-md">
+                    <div class="border-b border-gray-200">
+                        <nav id="tabs" class="-mb-px flex flex-wrap space-x-2 sm:space-x-4" aria-label="Tabs">
+                        </nav>
+                    </div>
+                    <div id="tab-content" class="mt-6">
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <button id="reset-fab" title="Reset Progress" class="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-lg transition-transform duration-200 ease-in-out transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+        <span class="text-2xl" aria-hidden="true">&#x21bb;</span>
+    </button>
+    
+    <div id="reset-modal" class="fixed inset-0 z-50 modal-overlay items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6 sm:p-8 w-full max-w-md">
+            <h3 class="text-xl font-bold text-gray-900 text-center">Reset Progress?</h3>
+            <p class="text-center text-gray-600 mt-2 mb-6">Are you sure you want to reset all your progress? This action cannot be undone.</p>
+            <div class="flex justify-center space-x-4">
+                <button id="cancel-reset" class="px-6 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-semibold">Cancel</button>
+                <button id="confirm-reset" class="px-6 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 font-semibold">Confirm Reset</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const studyPlanData = [
+            { week: 1, day: 1, topic: "Arrays (Static & Dynamic)", problems: ["217. Contains Duplicate", "1. Two Sum", "49. Group Anagrams"], completed: false },
+            { week: 1, day: 2, topic: "Hashing & Hashmaps", problems: ["347. Top K Frequent Elements", "242. Valid Anagram"], completed: false },
+            { week: 1, day: 3, topic: "Two Pointers Technique", problems: ["125. Valid Palindrome", "167. Two Sum II", "15. 3Sum"], completed: false },
+            { week: 1, day: 4, topic: "Sliding Window Technique", problems: ["121. Best Time to Buy and Sell Stock", "3. Longest Substring Without Repeating Characters"], completed: false },
+            { week: 1, day: 5, topic: "Prefix Sums", problems: ["560. Subarray Sum Equals K", "724. Find Pivot Index"], completed: false },
+            { week: 1, day: 6, topic: "Revision Day 1", problems: ["Review concepts from Days 1-3. Redo problems you struggled with."], completed: false, revision: true },
+            { week: 1, day: 7, topic: "Revision Day 2", problems: ["Review concepts from Days 4-5. Attempt 1-2 new medium problems from this week's topics."], completed: false, revision: true },
+            { week: 2, day: 8, topic: "Stacks", problems: ["20. Valid Parentheses", "155. Min Stack", "739. Daily Temperatures"], completed: false },
+            { week: 2, day: 9, topic: "Linked Lists (Singly)", problems: ["206. Reverse Linked List", "21. Merge Two Sorted Lists", "141. Linked List Cycle"], completed: false },
+            { week: 2, day: 10, topic: "Linked Lists (Advanced)", problems: ["19. Remove Nth Node From End of List", "143. Reorder List", "287. Find the Duplicate Number"], completed: false },
+            { week: 2, day: 11, topic: "Binary Search", problems: ["704. Binary Search", "74. Search a 2D Matrix", "875. Koko Eating Bananas"], completed: false },
+            { week: 2, day: 12, topic: "Advanced Binary Search", problems: ["33. Search in Rotated Sorted Array", "4. Median of two Sorted Arrays"], completed: false },
+            { week: 2, day: 13, topic: "Revision Day 1", problems: ["Review Stacks and Linked List concepts."], completed: false, revision: true },
+            { week: 2, day: 14, topic: "Revision Day 2", problems: ["Review Binary Search. Redo difficult problems from the week."], completed: false, revision: true },
+            { week: 3, day: 15, topic: "Binary Trees & Traversal", problems: ["102. Binary Tree Level Order Traversal", "144. Preorder", "94. Inorder", "145. Postorder"], completed: false },
+            { week: 3, day: 16, topic: "Tree Depth & Diameter", problems: ["104. Maximum Depth of Binary Tree", "543. Diameter of Binary Tree", "110. Balanced Binary Tree"], completed: false },
+            { week: 3, day: 17, topic: "Subtree & Equivalence", problems: ["226. Invert Binary Tree", "100. Same Tree", "572. Subtree of Another Tree"], completed: false },
+            { week: 3, day: 18, topic: "Binary Search Trees (BST)", problems: ["230. Kth Smallest Element in a BST", "98. Validate Binary Search Tree", "108. Convert Sorted Array to BST"], completed: false },
+            { week: 3, day: 19, topic: "Lowest Common Ancestor", problems: ["235. Lowest Common Ancestor of a BST", "236. Lowest Common Ancestor of a Binary Tree"], completed: false },
+            { week: 3, day: 20, topic: "Revision Day 1", problems: ["Review basic tree traversals, depth, and equivalence."], completed: false, revision: true },
+            { week: 3, day: 21, topic: "Revision Day 2", problems: ["Review BSTs and LCA. Attempt 2-3 new medium tree problems."], completed: false, revision: true },
+            { week: 4, day: 22, topic: "Tries (Prefix Trees)", problems: ["208. Implement Trie (Prefix Tree)", "211. Design Add and Search Words Data Structure"], completed: false },
+            { week: 4, day: 23, topic: "Word Search with Tries", problems: ["212. Word Search II"], completed: false },
+            { week: 4, day: 24, topic: "Heaps / Priority Queues", problems: ["703. Kth Largest Element in a Stream", "1046. Last Stone Weight"], completed: false },
+            { week: 4, day: 25, topic: "Advanced Heap Problems", problems: ["973. K Closest Points to Origin", "355. Design Twitter", "295. Find Median from Data Stream"], completed: false },
+            { week: 4, day: 26, topic: "Heap Applications", problems: ["621. Task Scheduler", "215. Kth Largest Element in an Array"], completed: false },
+            { week: 4, day: 27, topic: "Revision Day 1", problems: ["Review Tries and basic heap operations."], completed: false, revision: true },
+            { week: 4, day: 28, topic: "Revision Day 2", problems: ["Review advanced heap problems and applications."], completed: false, revision: true },
+            { week: 5, day: 29, topic: "Backtracking Intro", problems: ["78. Subsets", "39. Combination Sum", "46. Permutations"], completed: false },
+            { week: 5, day: 30, topic: "Advanced Backtracking", problems: ["90. Subsets II", "40. Combination Sum II", "79. Word Search"], completed: false },
+            { week: 5, day: 31, topic: "Graphs Intro & Adjacency List", problems: ["200. Number of Islands", "133. Clone Graph"], completed: false },
+            { week: 5, day: 32, topic: "Breadth-First Search (BFS)", problems: ["102. Binary Tree Level Order Traversal (as graph)", "429. N-ary Tree Level Order Traversal"], completed: false },
+            { week: 5, day: 33, topic: "Depth-First Search (DFS)", problems: ["733. Flood Fill", "200. Number of Islands (using DFS)"], completed: false },
+            { week: 5, day: 34, topic: "Revision Day 1", problems: ["Review all backtracking patterns."], completed: false, revision: true },
+            { week: 5, day: 35, topic: "Revision Day 2", problems: ["Review Graph representation, BFS, and DFS."], completed: false, revision: true },
+            { week: 6, day: 36, topic: "Graph Connectivity", problems: ["207. Course Schedule", "210. Course Schedule II (Topological Sort)"], completed: false },
+            { week: 6, day: 37, topic: "More Graph Problems", problems: ["695. Max Area of Island", "994. Rotting Oranges"], completed: false },
+            { week: 6, day: 38, topic: "Dynamic Programming (1D)", problems: ["70. Climbing Stairs", "198. House Robber", "213. House Robber II"], completed: false },
+            { week: 6, day: 39, topic: "DP (1D continued)", problems: ["322. Coin Change", "139. Word Break", "300. Longest Increasing Subsequence"], completed: false },
+            { week: 6, day: 40, topic: "Dynamic Programming (2D)", problems: ["1143. Longest Common Subsequence", "62. Unique Paths"], completed: false },
+            { week: 6, day: 41, topic: "Revision Day 1", problems: ["Review advanced graph algorithms. Redo Course Schedule problems."], completed: false, revision: true },
+            { week: 6, day: 42, topic: "Revision Day 2", problems: ["Review all 1D and 2D DP problems from the week."], completed: false, revision: true },
+            { week: 7, day: 43, topic: "More 2D DP", problems: ["5. Longest Palindromic Substring", "416. Partition Equal Subset Sum"], completed: false },
+            { week: 7, day: 44, topic: "DP with State Compression", problems: ["518. Coin Change 2", "494. Target Sum"], completed: false },
+            { week: 7, day: 45, topic: "Intervals (Merge)", problems: ["57. Insert Interval", "56. Merge Intervals", "435. Non-overlapping Intervals"], completed: false },
+            { week: 7, day: 46, topic: "Intervals (Meeting Rooms)", problems: ["252. Meeting Rooms", "253. Meeting Rooms II"], completed: false },
+            { week: 7, day: 47, topic: "Bit Manipulation", problems: ["268. Missing Number", "191. Number of 1 Bits", "338. Counting Bits"], completed: false },
+            { week: 7, day: 48, topic: "Revision Day 1", problems: ["Review DP problems. Focus on identifying DP patterns."], completed: false, revision: true },
+            { week: 7, day: 49, topic: "Revision Day 2", problems: ["Review Interval patterns and Bit Manipulation."], completed: false, revision: true },
+            { week: 8, day: 50, topic: "Review: Arrays & Strings", problems: ["Solve 3-4 medium problems from past contests."], completed: false },
+            { week: 8, day: 51, topic: "Review: Trees & Graphs", problems: ["Solve 3-4 medium problems from past contests."], completed: false },
+            { week: 8, day: 52, topic: "Review: DP & Backtracking", problems: ["Solve 3-4 medium problems from past contests."], completed: false },
+            { week: 8, day: 53, topic: "Greedy Algorithms", problems: ["55. Jump Game", "53. Maximum Subarray", "45. Jump Game II"], completed: false },
+            { week: 8, day: 54, topic: "Advanced/Misc Problems", problems: ["146. LRU Cache", "128. Longest Consecutive Sequence"], completed: false },
+            { week: 8, day: 55, topic: "Revision Day 1", problems: ["Review all major data structures."], completed: false, revision: true },
+            { week: 8, day: 56, topic: "Revision Day 2", problems: ["Review all major algorithm patterns."], completed: false, revision: true },
+            { week: 9, day: 57, topic: "Mock Contest 1", problems: ["Attempt a recent LeetCode weekly contest under timed conditions."], completed: false, revision: true },
+            { week: 9, day: 58, topic: "Review Contest 1", problems: ["Analyze your performance, understand missed problems."], completed: false, revision: true },
+            { week: 9, day: 59, topic: "Mock Contest 2", problems: ["Attempt another timed contest."], completed: false, revision: true },
+            { week: 9, day: 60, topic: "Final Review", problems: ["Review your weakest topics based on mock contest performance."], completed: false, revision: true },
+        ];
+
+        const topicGroups = {
+            "Arrays & Hashing": ["Arrays", "Hashing", "Two Pointers", "Sliding Window", "Prefix Sums"],
+            "Data Structures": ["Stacks", "Linked Lists", "Tries", "Heaps"],
+            "Trees": ["Binary Trees", "BST", "Tree Depth", "Subtree", "Lowest Common Ancestor"],
+            "Algorithms": ["Binary Search", "Backtracking", "Bit Manipulation", "Greedy"],
+            "Graphs": ["Graphs", "BFS", "DFS", "Graph Connectivity"],
+            "Dynamic Programming": ["Dynamic Programming", "DP"],
+            "Intervals": ["Intervals"],
+            "Review & Mocks": ["Review", "Mock", "Advanced/Misc"]
+        };
+
+        function getTopicGroup(topic) {
+            for (const group in topicGroups) {
+                if (topicGroups[group].some(keyword => topic.includes(keyword))) {
+                    return group;
+                }
+            }
+            return "Other";
+        }
+
+        let progressChart, topicChart;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const resetFab = document.getElementById('reset-fab');
+            const resetModal = document.getElementById('reset-modal');
+            const confirmResetBtn = document.getElementById('confirm-reset');
+            const cancelResetBtn = document.getElementById('cancel-reset');
+
+            loadState();
+            setupTabs();
+            renderWeek(1);
+            setupCharts();
+            updateDashboard();
+
+            document.getElementById('tabs').addEventListener('click', (e) => {
+                if (e.target.tagName === 'A') {
+                    e.preventDefault();
+                    const week = parseInt(e.target.dataset.week);
+                    renderWeek(week);
+                    
+                    document.querySelectorAll('#tabs a').forEach(tab => tab.classList.remove('tab-active', 'border-b-2'));
+                    e.target.classList.add('tab-active', 'border-b-2');
+                }
+            });
+
+            document.getElementById('tab-content').addEventListener('change', (e) => {
+                if (e.target.type === 'checkbox') {
+                    const day = parseInt(e.target.dataset.day);
+                    const dayData = studyPlanData.find(d => d.day === day);
+                    if (dayData) {
+                        dayData.completed = e.target.checked;
+                        updateDashboard();
+                        document.getElementById(`day-card-${day}`).classList.toggle('completed-card', dayData.completed);
+                        saveState();
+                    }
+                }
+            });
+
+            resetFab.addEventListener('click', () => {
+                resetModal.classList.remove('hidden');
+                resetModal.classList.add('flex');
+            });
+
+            cancelResetBtn.addEventListener('click', () => {
+                resetModal.classList.add('hidden');
+                resetModal.classList.remove('flex');
+            });
+            
+            confirmResetBtn.addEventListener('click', () => {
+                resetProgress();
+                resetModal.classList.add('hidden');
+                resetModal.classList.remove('flex');
+            });
+        });
+        
+        function resetProgress() {
+            studyPlanData.forEach(day => day.completed = false);
+            localStorage.removeItem('leetCodePlanProgress');
+            updateDashboard();
+            const activeWeek = getActiveWeek();
+            renderWeek(activeWeek);
+        }
+
+        function getActiveWeek() {
+            const activeTab = document.querySelector('.tab-active');
+            return activeTab ? parseInt(activeTab.dataset.week) : 1;
+        }
+
+
+        function setupTabs() {
+            const tabsContainer = document.getElementById('tabs');
+            const weeks = [...new Set(studyPlanData.map(item => item.week))];
+            tabsContainer.innerHTML = weeks.map(week => `
+                <a href="#" data-week="${week}" class="whitespace-nowrap py-3 px-2 sm:px-4 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 ${week === 1 ? 'tab-active border-b-2' : ''}">
+                    ${week <= 8 ? `Week ${week}` : 'Mocks'}
+                </a>
+            `).join('');
+        }
+
+        function renderWeek(week) {
+            const contentContainer = document.getElementById('tab-content');
+            const weekData = studyPlanData.filter(item => item.week === week);
+            contentContainer.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                ${weekData.map(day => createDayCard(day)).join('')}
+            </div>`;
+        }
+        
+        function createDayCard(day) {
+            const problemLinks = day.problems.map(p => {
+                const match = p.match(/^(\d+)\./);
+                if (match) {
+                    const problemNum = match[1];
+                    const problemTitle = p.substring(match[0].length).trim().toLowerCase().replace(/ /g, '-').replace(/[^\w-]/g, '');
+                    return `<li class="flex items-start"><span class="text-blue-500 mr-2">&#8227;</span><a href="https://leetcode.com/problems/${problemTitle}/" target="_blank" class="text-blue-600 hover:underline">${p}</a></li>`;
+                }
+                return `<li class="flex items-start"><span class="text-gray-500 mr-2">&#8227;</span>${p}</li>`;
+            }).join('');
+
+            const cardClasses = `day-card p-5 flex flex-col justify-between ${day.revision ? 'revision-card' : ''} ${day.completed ? 'completed-card' : ''}`;
+
+            return `
+            <div id="day-card-${day.day}" class="${cardClasses}">
+                <div>
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="font-bold text-lg text-gray-800">${day.topic}</p>
+                            <p class="text-sm font-medium text-gray-500">Day ${day.day}</p>
+                        </div>
+                        <input type="checkbox" data-day="${day.day}" ${day.completed ? 'checked' : ''} class="form-checkbox h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500 cursor-pointer">
+                    </div>
+                    <ul class="space-y-1.5 text-sm text-gray-600 list-inside">
+                        ${problemLinks}
+                    </ul>
+                </div>
+            </div>`;
+        }
+
+
+        function setupCharts() {
+            const progressCtx = document.getElementById('progressChart').getContext('2d');
+            progressChart = new Chart(progressCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'Remaining'],
+                    datasets: [{
+                        data: [0, 60],
+                        backgroundColor: ['#7D9D9C', '#E5E7EB'],
+                        borderColor: ['#FFFFFF'],
+                        borderWidth: 4,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    }
+                }
+            });
+
+            const topicData = getTopicDistribution();
+            const topicCtx = document.getElementById('topicChart').getContext('2d');
+            topicChart = new Chart(topicCtx, {
+                type: 'bar',
+                data: {
+                    labels: topicData.labels,
+                    datasets: [{
+                        label: 'Days per Topic',
+                        data: topicData.data,
+                        backgroundColor: '#7D9D9C',
+                        borderColor: '#576F72',
+                        borderWidth: 1,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { beginAtZero: true, grid: { display: false } },
+                        y: { grid: { display: false } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.raw} days`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateDashboard() {
+            const completedCount = studyPlanData.filter(d => d.completed).length;
+            const remainingCount = studyPlanData.length - completedCount;
+
+            progressChart.data.datasets[0].data = [completedCount, remainingCount];
+            progressChart.update();
+        }
+
+        function getTopicDistribution() {
+            const distribution = {};
+            studyPlanData.forEach(day => {
+                if(day.revision) return;
+                const group = getTopicGroup(day.topic);
+                distribution[group] = (distribution[group] || 0) + 1;
+            });
+            const sortedTopics = Object.entries(distribution).sort(([,a],[,b]) => a-b);
+            return {
+                labels: sortedTopics.map(item => item[0]),
+                data: sortedTopics.map(item => item[1])
+            };
+        }
+        
+        function saveState() {
+            const completedDays = studyPlanData.filter(d => d.completed).map(d => d.day);
+            localStorage.setItem('leetCodePlanProgress', JSON.stringify(completedDays));
+        }
+
+        function loadState() {
+            const savedProgress = JSON.parse(localStorage.getItem('leetCodePlanProgress'));
+            if (Array.isArray(savedProgress)) {
+                studyPlanData.forEach(day => {
+                    if (savedProgress.includes(day.day)) {
+                        day.completed = true;
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
+
